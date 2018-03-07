@@ -17,6 +17,10 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using Microsoft.PowerShell.PSReadLine;
 
+#if !LINUX
+using Microsoft.Win32;
+#endif
+
 namespace Microsoft.PowerShell
 {
 
@@ -130,6 +134,7 @@ namespace Microsoft.PowerShell
         public PSConsoleReadLineOptions(string hostName)
         {
             ResetColors();
+
             EditMode = DefaultEditMode;
             ContinuationPrompt = DefaultContinuationPrompt;
             ContinuationPromptColor = Console.ForegroundColor;
@@ -148,6 +153,155 @@ namespace Microsoft.PowerShell
             HistorySearchCaseSensitive = DefaultHistorySearchCaseSensitive;
             HistorySaveStyle = DefaultHistorySaveStyle;
             AnsiEscapeTimeout = DefaultAnsiEscapeTimeout;
+
+#if !LINUX
+            try
+            {
+                using (RegistryKey hkcuConsoleRegkey = Registry.CurrentUser.OpenSubKey("Console"))
+                {
+                    if (hkcuConsoleRegkey.GetSubKeyNames().Contains("PSReadLine"))
+                    {
+                        using (RegistryKey psrRegkey = hkcuConsoleRegkey.OpenSubKey("PSReadLine"))
+                        {
+                            string[] customProperties = psrRegkey.GetValueNames();
+
+                            for (int i = 0; i < customProperties.Length; i++)
+                            {
+                                switch (customProperties[i])
+                                {
+                                    case "EditMode":
+                                        if (psrRegkey.GetValueKind("EditMode") == RegistryValueKind.String)
+                                        {
+                                            string regEditMode = (string)psrRegkey.GetValue("EditMode");
+                                            EditMode = (regEditMode == "Windows") ? EditMode.Windows
+                                                : (regEditMode == "Emacs") ? EditMode.Emacs
+                                                : (regEditMode == "Vi") ? EditMode.Vi
+                                                : DefaultEditMode;
+                                        }
+                                        break;
+
+                                    case "ContinuationPrompt":
+                                        if (psrRegkey.GetValueKind("ContinuationPrompt") == RegistryValueKind.String)
+                                            ContinuationPrompt = (string)psrRegkey.GetValue("ContinuationPrompt");
+                                        break;
+
+                                    case "ContinuationPromptColor":
+                                        if (psrRegkey.GetValueKind("ContinuationPromptColor") == RegistryValueKind.String)
+                                            ContinuationPromptColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue("ContinuationPromptColor"), Console.ForegroundColor);
+                                        break;
+
+                                    case "ExtraPromptLineCount":
+                                        if (psrRegkey.GetValueKind("ExtraPromptLineCount") == RegistryValueKind.DWord)
+                                            ExtraPromptLineCount = (int)psrRegkey.GetValue("ExtraPromptLineCount");
+                                        break;
+
+                                    case "HistoryNoDuplicates":
+                                        if (psrRegkey.GetValueKind("HistoryNoDuplicates") == RegistryValueKind.DWord)
+                                        {
+                                            int regHistoryNoDuplicates = (int)psrRegkey.GetValue("HistoryNoDuplicates");
+                                            HistoryNoDuplicates = (regHistoryNoDuplicates == 0) ? false
+                                                : (regHistoryNoDuplicates == 1) ? true
+                                                : DefaultHistoryNoDuplicates;
+                                        }
+                                        break;
+
+                                    case "MaximumHistoryCount":
+                                        if (psrRegkey.GetValueKind("MaximumHistoryCount") == RegistryValueKind.DWord)
+                                            MaximumHistoryCount = Math.Max(1, (int)psrRegkey.GetValue("MaximumHistoryCount"));
+                                        break;
+
+                                    case "MaximumKillRingCount":
+                                        if (psrRegkey.GetValueKind("MaximumKillRingCount") == RegistryValueKind.DWord)
+                                            MaximumKillRingCount = Math.Max(1, (int)psrRegkey.GetValue("MaximumKillRingCount"));
+                                        break;
+
+                                    case "HistorySearchCursorMovesToEnd":
+                                        if (psrRegkey.GetValueKind("HistorySearchCursorMovesToEnd") == RegistryValueKind.DWord)
+                                        {
+                                            int regHistorySearchCursorMovesToEnd = (int)psrRegkey.GetValue("HistorySearchCursorMovesToEnd");
+                                            HistorySearchCursorMovesToEnd = (regHistorySearchCursorMovesToEnd == 0) ? false
+                                                : (regHistorySearchCursorMovesToEnd == 1) ? true
+                                                : DefaultHistorySearchCursorMovesToEnd;
+                                        }
+                                        break;
+
+                                    case "ShowToolTips":
+                                        if (psrRegkey.GetValueKind("ShowToolTips") == RegistryValueKind.DWord)
+                                        {
+                                            int regShowToolTips = (int)psrRegkey.GetValue("ShowToolTips");
+                                            ShowToolTips = (regShowToolTips == 0) ? false
+                                                : (regShowToolTips == 1) ? true
+                                                : DefaultShowToolTips;
+                                        }
+                                        break;
+
+                                    case "DingDuration":
+                                        if (psrRegkey.GetValueKind("DingDuration") == RegistryValueKind.DWord)
+                                            DingDuration = Math.Max(1, (int)psrRegkey.GetValue("DingDuration"));
+                                        break;
+
+                                    case "DingTone":
+                                        if (psrRegkey.GetValueKind("DingTone") == RegistryValueKind.DWord)
+                                            DingTone = Math.Max(1, (int)psrRegkey.GetValue("DingTone"));
+                                        break;
+
+                                    case "BellStyle":
+                                        if (psrRegkey.GetValueKind("BellStyle") == RegistryValueKind.String)
+                                        {
+                                            string regBellStyle = (string)psrRegkey.GetValue("BellStyle");
+                                            BellStyle = (regBellStyle == "Audible") ? BellStyle.Audible
+                                                : (regBellStyle == "Visual") ? BellStyle.Visual
+                                                : (regBellStyle == "None") ? BellStyle.None
+                                                : DefaultBellStyle;
+                                        }
+                                        break;
+
+                                    case "CompletionQueryItems":
+                                        if (psrRegkey.GetValueKind("CompletionQueryItems") == RegistryValueKind.DWord)
+                                            CompletionQueryItems = Math.Max(1, (int)psrRegkey.GetValue("CompletionQueryItems"));
+                                        break;
+
+                                    case "WordDelimiters":
+                                        if (psrRegkey.GetValueKind("WordDelimiters") == RegistryValueKind.String)
+                                            WordDelimiters = (string)psrRegkey.GetValue("WordDelimiters");
+                                        break;
+
+                                    case "HistorySearchCaseSensitive":
+                                        if (psrRegkey.GetValueKind("HistorySearchCaseSensitive") == RegistryValueKind.DWord)
+                                        {
+                                            int regHistorySearchCaseSensitive = (int)psrRegkey.GetValue("HistorySearchCaseSensitive");
+                                            HistorySearchCaseSensitive = (regHistorySearchCaseSensitive == 0) ? false
+                                                : (regHistorySearchCaseSensitive == 1) ? true
+                                                : DefaultHistorySearchCaseSensitive;
+                                        }
+                                        break;
+
+                                    case "HistorySaveStyle":
+                                        if (psrRegkey.GetValueKind("HistorySaveStyle") == RegistryValueKind.String)
+                                        {
+                                            string regHistorySaveStyle = (string)psrRegkey.GetValue("HistorySaveStyle");
+                                            HistorySaveStyle = (regHistorySaveStyle == "SaveAtExit") ? HistorySaveStyle.SaveAtExit
+                                                : (regHistorySaveStyle == "SaveIncrementally") ? HistorySaveStyle.SaveIncrementally
+                                                : (regHistorySaveStyle == "SaveNothing") ? HistorySaveStyle.SaveNothing
+                                                : DefaultHistorySaveStyle;
+                                        }
+                                        break;
+
+                                    case "AnsiEscapeTimeout":
+                                        if (psrRegkey.GetValueKind("AnsiEscapeTimeout") == RegistryValueKind.DWord)
+                                            AnsiEscapeTimeout = Math.Max(1, (int)psrRegkey.GetValue("AnsiEscapeTimeout"));
+                                        break;
+
+                                    default:
+                                        continue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+#endif
 
             var historyFileName = hostName + "_history.txt";
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -409,18 +563,18 @@ namespace Microsoft.PowerShell
         {
             var fg = Console.ForegroundColor;
             DefaultTokenColor = fg;
-            CommentColor      = DefaultCommentColor;
-            KeywordColor      = DefaultKeywordColor;
-            StringColor       = DefaultStringColor;
-            OperatorColor     = DefaultOperatorColor;
-            VariableColor     = DefaultVariableColor;
-            CommandColor      = DefaultCommandColor;
-            ParameterColor    = DefaultParameterColor;
-            TypeColor         = DefaultTypeColor;
-            NumberColor       = DefaultNumberColor;
-            MemberColor       = DefaultNumberColor;
-            EmphasisColor     = DefaultEmphasisColor;
-            ErrorColor        = DefaultErrorColor;
+            CommentColor = DefaultCommentColor;
+            KeywordColor = DefaultKeywordColor;
+            StringColor = DefaultStringColor;
+            OperatorColor = DefaultOperatorColor;
+            VariableColor = DefaultVariableColor;
+            CommandColor = DefaultCommandColor;
+            ParameterColor = DefaultParameterColor;
+            TypeColor = DefaultTypeColor;
+            NumberColor = DefaultNumberColor;
+            MemberColor = DefaultNumberColor;
+            EmphasisColor = DefaultEmphasisColor;
+            ErrorColor = DefaultErrorColor;
 
             var bg = Console.BackgroundColor;
             if (fg == VTColorUtils.UnknownColor || bg == VTColorUtils.UnknownColor)
@@ -430,7 +584,102 @@ namespace Microsoft.PowerShell
                 bg = ConsoleColor.Gray;
             }
 
-            SelectionColor = VTColorUtils.AsEscapeSequence(bg, fg);
+#if !LINUX
+            // #FEATURE custom colorization from Windows registry
+            try
+            {
+                using (RegistryKey hkcuConsoleRegkey = Registry.CurrentUser.OpenSubKey("Console"))
+                {
+                    if (hkcuConsoleRegkey.GetSubKeyNames().Contains("PSReadLine"))
+                    {
+                        using (RegistryKey psrRegkey = hkcuConsoleRegkey.OpenSubKey("PSReadLine"))
+                        {
+                            string[] customProperties = psrRegkey.GetValueNames();
+                            bool customFg = false;
+                            bool customBg = false;
+                            ConsoleColor customFgColor = Console.ForegroundColor;
+                            ConsoleColor customBgColor = Console.BackgroundColor;
+                            SelectionColor = VTColorUtils.AsEscapeSequence(bg, fg);
+
+                            for (int i = 0; i < customProperties.Length; i++)
+                            {
+                                if (psrRegkey.GetValueKind(customProperties[i]) != RegistryValueKind.String)
+                                    continue;
+
+                                switch (customProperties[i])
+                                {
+                                    case "ForegroundColor":
+                                        DefaultTokenColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), Console.ForegroundColor);
+                                        customFg = true;
+                                        customFgColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), Console.ForegroundColor); ;
+                                        break;
+
+                                    case "BackgroundColor":
+                                        customBg = true;
+                                        customBgColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), Console.BackgroundColor);
+                                        break;
+
+                                    case "CommentColor":
+                                        CommentColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), DefaultCommentColor);
+                                        break;
+
+                                    case "KeywordColor":
+                                        KeywordColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), DefaultKeywordColor);
+                                        break;
+
+                                    case "StringColor":
+                                        StringColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), DefaultStringColor);
+                                        break;
+
+                                    case "OperatorColor":
+                                        OperatorColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), DefaultOperatorColor);
+                                        break;
+
+                                    case "VariableColor":
+                                        VariableColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), DefaultVariableColor);
+                                        break;
+
+                                    case "CommandColor":
+                                        CommandColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), DefaultCommandColor);
+                                        break;
+
+                                    case "ParameterColor":
+                                        ParameterColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), DefaultParameterColor);
+                                        break;
+
+                                    case "TypeColor":
+                                        TypeColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), DefaultTypeColor);
+                                        break;
+
+                                    case "NumberColor":
+                                        NumberColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), DefaultNumberColor);
+                                        break;
+
+                                    case "MemberColor":
+                                        MemberColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), DefaultMemberColor);
+                                        break;
+
+                                    case "EmphasisColor":
+                                        EmphasisColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), DefaultEmphasisColor);
+                                        break;
+
+                                    case "ErrorColor":
+                                        ErrorColor = VTColorUtils.StringToConsoleColor((string)psrRegkey.GetValue(customProperties[i]), DefaultErrorColor);
+                                        break;
+
+                                    default:
+                                        break;
+                                }
+                            }
+
+                            if (customFg || customBg)
+                                SelectionColor = VTColorUtils.AsEscapeSequence(customBgColor, customFgColor);
+                        }
+                    }
+                }
+            }
+            catch { }
+#endif
         }
 
         private static Dictionary<string, Action<PSConsoleReadLineOptions, object>> ColorSetters = null;
@@ -847,6 +1096,53 @@ namespace Microsoft.PowerShell
     public static class VTColorUtils
     {
         public const ConsoleColor UnknownColor = (ConsoleColor) (-1);
+
+        public static ConsoleColor StringToConsoleColor(string color, ConsoleColor defaultColor)
+        {
+            switch (color.ToUpperInvariant())
+            {
+                case "BLACK":
+                    return ConsoleColor.Black;
+                case "BLUE":
+                    return ConsoleColor.Blue;
+                case "CYAN":
+                    return ConsoleColor.Cyan;
+                case "DARKBLUE":
+                    return ConsoleColor.DarkBlue;
+                case "DARKCYAN":
+                    return ConsoleColor.DarkCyan;
+                case "DARKGRAY":
+                    return ConsoleColor.DarkGray;
+                case "DARKGREEN":
+                    return ConsoleColor.DarkGreen;
+                case "DARKMAGENTA":
+                    return ConsoleColor.DarkMagenta;
+                case "DARKRED":
+                    return ConsoleColor.DarkRed;
+                case "DARKYELLOW":
+                    return ConsoleColor.DarkYellow;
+                case "GRAY":
+                    return ConsoleColor.Gray;
+                case "GREEN":
+                    return ConsoleColor.Green;
+                case "MAGENTA":
+                    return ConsoleColor.Magenta;
+                case "RED":
+                    return ConsoleColor.Red;
+                case "WHITE":
+                    return ConsoleColor.White;
+                case "YELLOW":
+                    return ConsoleColor.Yellow;
+
+                case "BACKGROUND":
+                    return Console.BackgroundColor;
+                case "FOREGROUND":
+                    return Console.ForegroundColor;
+
+                default:
+                    return defaultColor;
+            }
+        }
 
         public static bool IsValidColor(object o)
         {
